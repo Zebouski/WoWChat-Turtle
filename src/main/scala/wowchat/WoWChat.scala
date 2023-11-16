@@ -13,7 +13,7 @@ import scala.io.Source
 
 object WoWChat extends StrictLogging {
 
-  private val RELEASE = "v1.3.8"
+  private val RELEASE = "v1.3.8-t1.17.0-1"
 
   def main(args: Array[String]): Unit = {
     logger.info(s"Running WoWChat - $RELEASE")
@@ -82,7 +82,7 @@ object WoWChat extends StrictLogging {
 
   private def checkForNewVersion = {
     // This is JSON, but I really just didn't want to import a full blown JSON library for one string.
-    val data = Source.fromURL("https://api.github.com/repos/fjaros/wowchat/releases/latest").mkString
+    val data = Source.fromURL("https://api.github.com/repos/Zebouski/WoWChat-Turtle/releases/latest").mkString
     val regex = "\"tag_name\":\"(.+?)\",".r
     val repoTagName = regex
       .findFirstMatchIn(data)
@@ -93,7 +93,7 @@ object WoWChat extends StrictLogging {
       logger.error( "~~~ !!!                YOUR WoWChat VERSION IS OUT OF DATE                !!! ~~~")
       logger.error(s"~~~ !!!                     Current Version:  $RELEASE                      !!! ~~~")
       logger.error(s"~~~ !!!                     Repo    Version:  $repoTagName                      !!! ~~~")
-      logger.error( "~~~ !!!    GO TO https://github.com/Zebouski/WoWChat-Turtle TO UPDATE !!! ~~~")
+      logger.error( "~~~ !!! RUN git pull OR GO TO https://github.com/Zebouski/WoWChat-Turtle TO UPDATE !!! ~~~")
       logger.error( "~~~ !!!                YOUR WoWChat VERSION IS OUT OF DATE                !!! ~~~")
     }
   }
