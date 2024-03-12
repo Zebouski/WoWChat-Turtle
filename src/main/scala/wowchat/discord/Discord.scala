@@ -63,10 +63,15 @@ class Discord(discordConnectionCallback: CommonConnectionCallback) extends Liste
             .replace("_", "\\_")
             .replace("~", "\\~")
 
+          var userName = from.getOrElse("")
+          if (userName.nonEmpty) {
+            userName = s"[${userName}](https://armory.turtle-wow.org/#!/character/${userName})"
+          }
+
           val formatted = channelConfig
             .format
             .replace("%time", Global.getTime)
-            .replace("%user", from.getOrElse(""))
+            .replace("%user", userName)
             .replace("%message", parsedResolvedTags)
             .replace("%target", wowChannel.getOrElse(""))
 
