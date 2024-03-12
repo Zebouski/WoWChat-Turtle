@@ -63,10 +63,15 @@ class Discord(discordConnectionCallback: CommonConnectionCallback) extends Liste
             .replace("_", "\\_")
             .replace("~", "\\~")
 
+          var userName = from.getOrElse("")
+          if (userName.nonEmpty) {
+            userName = s"[${userName}](https://armory.turtle-wow.org/#!/character/${userName})"
+          }
+
           val formatted = channelConfig
             .format
             .replace("%time", Global.getTime)
-            .replace("%user", from.getOrElse(""))
+            .replace("%user", userName)
             .replace("%message", parsedResolvedTags)
             .replace("%target", wowChannel.getOrElse(""))
 
@@ -234,8 +239,8 @@ class Discord(discordConnectionCallback: CommonConnectionCallback) extends Liste
 
     val channel = event.getChannel
     val channelId = channel.getId
-    val channelName = event.getChannel.getName.toLowerCase
-    val effectiveName = event.getMember.getEffectiveName
+    val channelName = event.getTextChannel.getName.toLowerCase
+    val effectiveName = if (event.isWebhookMessage) event.getAuthor.getName else event.getMember.getEffectiveName
     val message = (sanitizeMessage(event.getMessage.getContentDisplay) +: event.getMessage.getAttachments.asScala.map(_.getUrl))
       .filter(_.nonEmpty)
       .mkString(" ")

@@ -106,6 +106,65 @@ Even though this bot does not do anything malicious, some servers may not like a
 ## Run
 1. WoW Chat is written in Scala and compiles to a Java executable using [maven](https://maven.apache.org).
 2. It uses Java JDK 1.8 and Scala 2.12.12.
-3. Run `mvn clean package` which will produce a file in the target folder called `wowchat-1.3.8.zip`
-4. unzip `wowchat-1.3.8.zip`, edit the configuration file and run `java -jar wowchat.jar <config file>`
+3. Run `mvn clean package` which will produce a file in the target folder called `wowchat-<current_version>.zip`
+4. unzip `wowchat-<current_version>.zip`, edit the configuration file and run `java -jar wowchat.jar <config file>`
    * If no config file is supplied, the bot will try to use `wowchat.conf`
+
+## Run as container
+Docker support has been added for an alternative and simple way to deploy WoW Chat:
+
+1. Populate `.env` file with required information:
+
+  (or skip this step and configure these specific fields manually in `./src/main/resources/wowchat.conf`):
+```bash
+DISCORD_TOKEN=...
+WOW_ACCOUNT=...
+WOW_PASSWORD=...
+WOW_CHARACTER=...
+```
+2. Configure `./src/main/resources/wowchat.conf` as needed.
+3. Build container:
+```bash
+docker-compose build
+```
+4. Run:
+```bash
+docker-compose up
+
+# might be helpful:
+docker-compose up -d    # run detached
+docker-compose logs -f  # logs
+docker stats            # displays resource usage
+docker-compose down     # stops running container
+```
+
+5. (Optional) Run as systemd service:
+  * systemd unit file (`/etc/systemd/system/wowchat.service`):
+```ini
+[Unit]
+Description=WoWChat service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/<path-to-project>/WoWChat-Turtle/
+ExecStart=/usr/local/bin/docker-compose up
+Restart=always
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+  * Setup/run:
+```bash
+# setup:
+systemctl daemon-reload
+systemctl enable wowchat.service
+systemctl start wowchat.service
+
+# status/logs:
+systemctl status wowchat.service
+journalctl -u wowchat.service -f
+```
