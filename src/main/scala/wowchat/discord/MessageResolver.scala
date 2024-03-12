@@ -23,21 +23,31 @@ object MessageResolver {
 
 class MessageResolver(jda: JDA) {
 
+  protected val linkSite = "[%2$s](http://database.turtle-wow.org/?%3$s=%1$s)"
+  protected val linkArmory = "[%1$s](https://armory.turtle-wow.org/#!/character/%2$s)"
+
+  protected val objectLinks = Seq(
+    "item" -> linkSite,
+    "spell" -> linkSite,
+    "quest" -> linkSite,
+    "player" -> linkArmory,
+  )
   protected val linkRegexes = Seq(
+    "player" -> "\\|Hplayer:(\\w+)\\|h\\[(\\w+)\\]\\|h".r,
     "item" -> "\\|.+?\\|Hitem:(\\d+):.+?\\|h\\[(.+?)]\\|h\\|r".r,
     "spell" -> "\\|.+?\\|(?:Hspell|Henchant)?:(\\d+).*?\\|h\\[(.+?)]\\|h\\|r".r,
     "quest" -> "\\|.+?\\|Hquest:(\\d+):.+?\\|h\\[(.+?)]\\|h\\|r".r
   )
 
-  protected val linkSite = "http://database.turtle-wow.org"
-
   def resolveLinks(message: String): String = {
-    linkRegexes.foldLeft(message) {
-      case (result, (classicDbKey, regex)) =>
-        regex.replaceAllIn(result, m => {
-          s"[[${m.group(2)}]]($linkSite?$classicDbKey=${m.group(1)})"
-        })
-    }
+      var result = message
+      linkRegexes.foreach {
+          case (k, regex) => {
+              val link: String = objectLinks.find { case (key, _) => key == k}.map(_._2).getOrElse("-")
+              result = regex.replaceAllIn(result, m => link.format(m.group(1), m.group(2), k))
+          }
+      }
+      result
   }
 
   def resolveAchievementId(achievementId: Int): String = {
