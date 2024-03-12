@@ -1,0 +1,8 @@
+version: '3.7'
+services:
+    wow-chat:
+        build:
+            context: ./
+            dockerfile: ./Dockerfile
+        env_file:
+            - .env
