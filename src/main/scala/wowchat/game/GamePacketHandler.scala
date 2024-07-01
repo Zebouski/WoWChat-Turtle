@@ -13,6 +13,7 @@ import wowchat.commands.{CommandHandler, WhoResponse}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.HashSet
 import scala.util.Random
 
 case class Player(name: String, charClass: Byte)
@@ -47,6 +48,8 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
 
   protected var ctx: Option[ChannelHandlerContext] = None
   protected val playerRoster = LRUMap.empty[Long, Player]
+  protected val playerRosterCached = LRUMap.empty[Long, String]
+  protected val playersToInvite: HashSet[Long] = HashSet[Long]()
   protected val guildRoster = mutable.Map.empty[Long, GuildMember]
   protected var lastRequestedGuildRoster: Long = _
   protected val executorService = Executors.newSingleThreadScheduledExecutor
@@ -65,6 +68,30 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
       Global.discord.sendMessageFromWow(None, "Disconnected from server!", ChatEvents.CHAT_MSG_SYSTEM, None)
     }
     super.channelInactive(ctx)
+  }
+
+  private def runPlayerInviteExecutor: Unit = {
+    executorService.scheduleWithFixedDelay(() => {
+      val guidsToRemove: HashSet[Long] = HashSet[Long]()
+
+      playersToInvite.foreach { guid =>
+        logger.debug(s"Player invitation: handling ${guid}...")
+        var player_name = playerRosterCached.get(guid)
+        player_name match {
+          case Some(name) =>
+            logger.debug(s"Inviting player '${name}'")
+            groupConvertToRaid
+            sendInvite(name)
+            guidsToRemove += guid
+          case None =>
+            logger.debug(s"Player invitation:'$guid' not cached, sending name query...")
+            sendNameQuery(guid)
+        }
+      }
+
+      guidsToRemove.foreach(playersToInvite.remove)
+
+    }, 3, 3, TimeUnit.SECONDS)
   }
 
   // Vanilla does not have a keep alive packet
@@ -177,6 +204,26 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     sendMessageToWow(ChatEvents.CHAT_MSG_GUILD, message, None)
   }
 
+  protected def sendInvite(name: String): Unit = {
+    ctx.get.writeAndFlush(buildInviteMessage(name))
+  }
+
+  protected def buildInviteMessage(name: String): Packet = {
+    val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(8, 16)
+    byteBuf.writeBytes(name.toLowerCase.getBytes("UTF-8"))
+    byteBuf.writeByte(0)
+    Packet(CMSG_GROUP_INVITE, byteBuf)
+  }
+
+  def groupDisband(): Unit = {
+    logger.debug(s"Disbanding group...")
+    ctx.get.writeAndFlush(Packet(CMSG_GROUP_DISBAND))
+  }
+
+  def groupConvertToRaid(): Unit = {
+    ctx.get.writeAndFlush(Packet(CMSG_GROUP_RAID_CONVERT))
+  }
+
   def sendNameQuery(guid: Long): Unit = {
     ctx.foreach(ctx => {
       val out = PooledByteBufAllocator.DEFAULT.buffer(8, 8)
@@ -250,6 +297,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
       case SMSG_WHO => handle_SMSG_WHO(msg)
       case SMSG_SERVER_MESSAGE => handle_SMSG_SERVER_MESSAGE(msg)
       case SMSG_INVALIDATE_PLAYER => handle_SMSG_INVALIDATE_PLAYER(msg)
+      case SMSG_PARTY_COMMAND_RESULT => handle_SMSG_PARTY_COMMAND_RESULT(msg)
 
       case SMSG_WARDEN_DATA => handle_SMSG_WARDEN_DATA(msg)
 
@@ -322,6 +370,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
 
   private def handle_SMSG_NAME_QUERY(msg: Packet): Unit = {
     val nameQueryMessage = parseNameQuery(msg)
+    playerRosterCached += nameQueryMessage.guid -> nameQueryMessage.name
 
     queuedChatMessages
       .remove(nameQueryMessage.guid)
@@ -421,6 +470,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     gameEventCallback.connected
     runKeepAliveExecutor
     runGuildRosterExecutor
+    runPlayerInviteExecutor
     if (guildGuid != 0) {
       queryGuildName
       updateGuildRoster
@@ -564,6 +614,16 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     parseChatMessage(msg).foreach(sendChatMessage)
   }
 
+  protected def handle_SMSG_PARTY_COMMAND_RESULT(msg: Packet): Unit = {
+    val reply = ByteUtils.toHexString(msg.byteBuf, true, true)
+    logger.debug(s"RECV PARTY COMMAND RESULT: ${reply}")
+
+    // We get this reply when we don't have rights to invite others
+    if (reply == "00 00 00 00 00 06 00 00 00") {
+      groupDisband()
+    }
+  }
+
   protected def sendChatMessage(chatMessage: ChatMessage): Unit = {
     if (chatMessage.guid == 0) {
       Global.discord.sendMessageFromWow(None, chatMessage.message, chatMessage.tp, None)
@@ -617,6 +677,14 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
 
     val txtLen = msg.byteBuf.readIntLE
     val txt = msg.byteBuf.readCharSequence(txtLen - 1, Charset.forName("UTF-8")).toString
+
+    // invite feature:
+    if (tp == ChatEvents.CHAT_MSG_WHISPER && txt.toLowerCase.contains("camp")) {
+      playersToInvite += guid
+      logger.debug(s"PLAYER INVITATION: added $guid to the queue")
+
+      return None
+    }
 
     Some(ChatMessage(guid, tp, txt, channelName))
   }
