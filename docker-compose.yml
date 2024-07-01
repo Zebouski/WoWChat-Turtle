@@ -4,5 +4,7 @@ services:
         build:
             context: ./
             dockerfile: ./Dockerfile
+            args:
+                - CONF_FILE=${CONF_FILE}
         env_file:
             - .env

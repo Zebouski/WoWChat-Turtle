@@ -12,7 +12,8 @@ RUN mvn clean package -DfinalName=wowchat
 
 FROM openjdk:8-jre
 WORKDIR /app
-COPY ./src/main/resources/wowchat.conf /app/
+ARG CONF_FILE
+COPY ./src/main/resources/${CONF_FILE} /app/config.conf
 COPY --from=builder /app/target/wowchat.jar /app
 
-ENTRYPOINT ["java", "-jar", "wowchat.jar", "wowchat.conf"]
+ENTRYPOINT ["java", "-jar", "wowchat.jar", "config.conf"]
