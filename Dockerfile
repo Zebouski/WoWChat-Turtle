@@ -13,7 +13,14 @@ RUN mvn clean package -DfinalName=wowchat
 FROM openjdk:8-jre
 WORKDIR /app
 ARG CONF_FILE
+COPY ./src/main/resources/logback.xml /app/logback.xml
 COPY ./src/main/resources/${CONF_FILE} /app/config.conf
 COPY --from=builder /app/target/wowchat.jar /app
 
-ENTRYPOINT ["java", "-jar", "wowchat.jar", "config.conf"]
+ENTRYPOINT ["java",\
+            "-XX:+HeapDumpOnOutOfMemoryError",\
+            "-Dfile.encoding=UTF-8", \
+            "-Dlogback.configurationFile=logback.xml", \
+            "-jar", \
+            "wowchat.jar", \
+            "config.conf"]
