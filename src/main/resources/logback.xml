@@ -1,4 +1,5 @@
 <configuration>
+    <property name="logLevel" value="ERROR" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -6,18 +7,18 @@
         </encoder>
     </appender>
 
-    <logger name="net.dv8tion.jda.core.requests.Requester" level="INFO" />
+    <logger name="net.dv8tion.jda.core.requests.Requester" level="${logLevel}" />
 
-    <logger name="wowchat.game.GamePacketEncoder" level="INFO" />
-    <logger name="wowchat.game.GamePacketEncoderCataclysm" level="INFO" />
-    <logger name="wowchat.game.GamePacketEncoderMoP" level="INFO" />
+    <logger name="wowchat.game.GamePacketEncoder" level="${logLevel}" />
+    <logger name="wowchat.game.GamePacketEncoderCataclysm" level="${logLevel}" />
+    <logger name="wowchat.game.GamePacketEncoderMoP" level="${logLevel}" />
 
-    <logger name="wowchat.game.GamePacketDecoder" level="INFO" />
-    <logger name="wowchat.game.GamePacketDecoderWotLK" level="INFO" />
-    <logger name="wowchat.game.GamePacketDecoderCataclysm" level="INFO" />
-    <logger name="wowchat.game.GamePacketDecoderMoP" level="INFO" />
+    <logger name="wowchat.game.GamePacketDecoder" level="${logLevel}" />
+    <logger name="wowchat.game.GamePacketDecoderWotLK" level="${logLevel}" />
+    <logger name="wowchat.game.GamePacketDecoderCataclysm" level="${logLevel}" />
+    <logger name="wowchat.game.GamePacketDecoderMoP" level="${logLevel}" />
 
-    <root level="INFO">
+    <root level="${logLevel}">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>
