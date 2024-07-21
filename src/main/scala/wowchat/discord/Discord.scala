@@ -65,7 +65,7 @@ class Discord(discordConnectionCallback: CommonConnectionCallback) extends Liste
 
           var userName = from.getOrElse("")
           if (userName.nonEmpty) {
-            userName = s"[${userName}](https://armory.turtle-wow.org/#!/character/${userName})"
+            userName = s"[${userName}](${WowChatConfig.armoryURL}${userName})"
           }
 
           val formatted = channelConfig
