@@ -690,7 +690,6 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     if (tp == ChatEvents.CHAT_MSG_WHISPER && (txt.toLowerCase.contains("camp") || txt.toLowerCase().contains("invite"))) {
       playersToGroupInvite += guid
       logger.debug(s"PLAYER INVITATION: added $guid to the queue")
-      Some(ChatMessage(guid, tp, s"(Sent raid invite to character guid '$guid')", channelName))
     }
 
     Some(ChatMessage(guid, tp, txt, channelName))
