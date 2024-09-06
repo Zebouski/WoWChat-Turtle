@@ -24,13 +24,21 @@ object CommandHandler extends StrictLogging {
   // returns back the message as an option if unhandled
   // needs to be refactored into a Map[String, <Intelligent Command Handler Function>]
   def apply(fromChannel: MessageChannel, message: String): Boolean = {
-    if (!message.startsWith(trigger)) {
+    if (!Global.config.discord.enableGuildCommands || !message.startsWith(trigger)) {
       return false
     }
 
     val splt = message.substring(trigger.length).split(" ")
     val possibleCommand = splt(0).toLowerCase
     val arguments = if (splt.length > 1 && splt(1).length <= 16) Some(splt(1)) else None
+
+    def protectedCommand(commandName: String, callback: () => Option[String]): Option[String] = {
+      if (Global.config.discord.protectedGuildCommandChannels.contains(fromChannel.getName())) {
+        callback()
+      } else {
+        Some(s"Command '${commandName}' not allowed")
+      }
+    }
 
     Try {
       possibleCommand match {
@@ -50,6 +58,47 @@ object CommandHandler extends StrictLogging {
             fromChannel.sendMessage(NOT_ONLINE).queue()
             return true
           })(_.handleGmotd())
+        case "ginvite" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("ginvite", () => {
+              arguments match {
+                case Some(name) => {
+                  game.sendGuildInvite(name.toLowerCase)
+                  Some(s"Invited '${name}' to the guild")
+                }
+                case None => {
+                  Some("no name provided!")
+                }
+              }
+            })
+          })
+        case "gkick" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("gkick", () => {
+              arguments match {
+                case Some(name) => {
+                  game.sendGuildKick(name.toLowerCase)
+                  Some(s"Kicked '${name}' from the guild")
+                }
+                case None => {
+                  Some("no name provided!")
+                }
+              }
+            })
+          })
+        case "help" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            Some("Supported commands: `who`, `online`, `gmotd`, `help`\nProtected commands: `ginvite <name>`, `gkick <name>`")
+          })
       }
     }.fold(throwable => {
       // command not found, should send to wow chat
