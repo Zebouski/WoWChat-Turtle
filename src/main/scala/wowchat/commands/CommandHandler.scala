@@ -33,7 +33,7 @@ object CommandHandler extends StrictLogging {
     val arguments = if (splt.length > 1 && splt(1).length <= 16) Some(splt(1)) else None
 
     def protectedCommand(commandName: String, callback: () => Option[String]): Option[String] = {
-      if (Global.config.discord.protectedGuildCommandChannels.contains(fromChannel.getName())) {
+      if (Global.config.discord.protectedGuildCommandChannels.contains(fromChannel.getId())) {
         callback()
       } else {
         Some(s"Command '${commandName}' not allowed")
