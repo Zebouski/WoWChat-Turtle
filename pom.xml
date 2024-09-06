@@ -11,7 +11,7 @@
     <properties>
         <java.version>1.8</java.version>
         <scala.version.major>2.12</scala.version.major>
-        <scala.version.minor>12</scala.version.minor>
+        <scala.version.minor>19</scala.version.minor>
     </properties>
 
     <dependencies>
