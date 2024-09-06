@@ -49,7 +49,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
   protected var ctx: Option[ChannelHandlerContext] = None
   protected val playerRoster = LRUMap.empty[Long, Player]
   protected val playerRosterCached = LRUMap.empty[Long, String]
-  protected val playersToInvite: HashSet[Long] = HashSet[Long]()
+  protected val playersToGroupInvite: HashSet[Long] = HashSet[Long]()
   protected val guildRoster = mutable.Map.empty[Long, GuildMember]
   protected var lastRequestedGuildRoster: Long = _
   protected val executorService = Executors.newSingleThreadScheduledExecutor
@@ -70,18 +70,18 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     super.channelInactive(ctx)
   }
 
-  private def runPlayerInviteExecutor: Unit = {
+  private def runGroupInviteExecutor: Unit = {
     executorService.scheduleWithFixedDelay(() => {
       val guidsToRemove: HashSet[Long] = HashSet[Long]()
 
-      playersToInvite.foreach { guid =>
-        logger.debug(s"Player invitation: handling ${guid}...")
+      playersToGroupInvite.foreach { guid =>
+        logger.debug(s"Player group invitation: handling ${guid}...")
         var player_name = playerRosterCached.get(guid)
         player_name match {
           case Some(name) =>
             logger.debug(s"Inviting player '${name}'")
             groupConvertToRaid
-            sendInvite(name)
+            sendGroupInvite(name)
             guidsToRemove += guid
           case None =>
             logger.debug(s"Player invitation:'$guid' not cached, sending name query...")
@@ -89,7 +89,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
         }
       }
 
-      guidsToRemove.foreach(playersToInvite.remove)
+      guidsToRemove.foreach(playersToGroupInvite.remove)
 
     }, 3, 3, TimeUnit.SECONDS)
   }
@@ -204,15 +204,23 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     sendMessageToWow(ChatEvents.CHAT_MSG_GUILD, message, None)
   }
 
-  protected def sendInvite(name: String): Unit = {
-    ctx.get.writeAndFlush(buildInviteMessage(name))
+  protected def sendGroupInvite(name: String): Unit = {
+    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GROUP_INVITE))
   }
 
-  protected def buildInviteMessage(name: String): Packet = {
+  def sendGuildInvite(name: String): Unit = {
+    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GUILD_INVITE))
+  }
+
+  def sendGuildKick(name: String): Unit = {
+    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GUILD_REMOVE))
+  }
+
+  protected def buildSingleStringPacket(name: String, opcode: Int): Packet = {
     val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(8, 16)
     byteBuf.writeBytes(name.toLowerCase.getBytes("UTF-8"))
     byteBuf.writeByte(0)
-    Packet(CMSG_GROUP_INVITE, byteBuf)
+    Packet(opcode, byteBuf)
   }
 
   def groupDisband(): Unit = {
@@ -470,7 +478,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     gameEventCallback.connected
     runKeepAliveExecutor
     runGuildRosterExecutor
-    runPlayerInviteExecutor
+    runGroupInviteExecutor
     if (guildGuid != 0) {
       queryGuildName
       updateGuildRoster
@@ -680,10 +688,8 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
 
     // invite feature:
     if (tp == ChatEvents.CHAT_MSG_WHISPER && txt.toLowerCase.contains("camp")) {
-      playersToInvite += guid
+      playersToGroupInvite += guid
       logger.debug(s"PLAYER INVITATION: added $guid to the queue")
-
-      return None
     }
 
     Some(ChatMessage(guid, tp, txt, channelName))
