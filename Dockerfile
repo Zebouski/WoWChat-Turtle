@@ -3,7 +3,7 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:resolve
 
-FROM maven:3.8.6-jdk-8 as builder
+FROM maven:3.8.6-jdk-8 AS builder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
