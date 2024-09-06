@@ -687,9 +687,10 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
     val txt = msg.byteBuf.readCharSequence(txtLen - 1, Charset.forName("UTF-8")).toString
 
     // invite feature:
-    if (tp == ChatEvents.CHAT_MSG_WHISPER && txt.toLowerCase.contains("camp")) {
+    if (tp == ChatEvents.CHAT_MSG_WHISPER && (txt.toLowerCase.contains("camp") || txt.toLowerCase().contains("invite"))) {
       playersToGroupInvite += guid
       logger.debug(s"PLAYER INVITATION: added $guid to the queue")
+      Some(ChatMessage(guid, tp, s"(Sent raid invite to character guid '$guid')", channelName))
     }
 
     Some(ChatMessage(guid, tp, txt, channelName))
