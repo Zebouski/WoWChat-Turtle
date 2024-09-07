@@ -205,20 +205,20 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
   }
 
   protected def sendGroupInvite(name: String): Unit = {
-    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GROUP_INVITE))
+    ctx.get.writeAndFlush(buildSingleStringPacket(CMSG_GROUP_INVITE, name.toLowerCase()))
   }
 
   def sendGuildInvite(name: String): Unit = {
-    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GUILD_INVITE))
+    ctx.get.writeAndFlush(buildSingleStringPacket(CMSG_GUILD_INVITE, name.toLowerCase()))
   }
 
   def sendGuildKick(name: String): Unit = {
-    ctx.get.writeAndFlush(buildSingleStringPacket(name, CMSG_GUILD_REMOVE))
+    ctx.get.writeAndFlush(buildSingleStringPacket(CMSG_GUILD_REMOVE, name.toLowerCase()))
   }
 
-  protected def buildSingleStringPacket(name: String, opcode: Int): Packet = {
+  protected def buildSingleStringPacket(opcode: Int, string_param: String): Packet = {
     val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(8, 16)
-    byteBuf.writeBytes(name.toLowerCase.getBytes("UTF-8"))
+    byteBuf.writeBytes(string_param.getBytes("UTF-8"))
     byteBuf.writeByte(0)
     Packet(opcode, byteBuf)
   }
