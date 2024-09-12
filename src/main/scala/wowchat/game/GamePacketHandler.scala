@@ -12,8 +12,11 @@ import io.netty.channel.{ChannelFuture, ChannelHandlerContext, ChannelInboundHan
 import wowchat.commands.{CommandHandler, WhoResponse}
 
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
+import scala.collection.mutable.ListBuffer
+import scala.io.Source
+import scala.util.control.Breaks.{breakable, break}
 import scala.util.Random
 
 case class Player(name: String, charClass: Byte)
@@ -50,6 +53,7 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
   protected val playerRoster = LRUMap.empty[Long, Player]
   protected val playerRosterCached = LRUMap.empty[Long, String]
   protected val playersToGroupInvite: HashSet[Long] = HashSet[Long]()
+  protected val groupMembers = mutable.Map.empty[String, Boolean]
   protected val guildRoster = mutable.Map.empty[Long, GuildMember]
   protected var lastRequestedGuildRoster: Long = _
   protected val executorService = Executors.newSingleThreadScheduledExecutor
@@ -205,7 +209,21 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
   }
 
   protected def sendGroupInvite(name: String): Unit = {
-    ctx.get.writeAndFlush(buildSingleStringPacket(CMSG_GROUP_INVITE, name.toLowerCase()))
+    ctx.get.writeAndFlush(
+      buildSingleStringPacket(CMSG_GROUP_INVITE, name.toLowerCase())
+    )
+  }
+
+  def sendGroupKick(name: String): Unit = {
+    ctx.get.writeAndFlush(
+      buildSingleStringPacket(CMSG_GROUP_KICK, name.toLowerCase())
+    )
+  }
+
+  def sendGroupKickUUID(name_uuid: String): Unit = {
+    ctx.get.writeAndFlush(
+      buildSingleStringPacket(CMSG_GROUP_KICK_UUID, name_uuid)
+    )
   }
 
   def sendGuildInvite(name: String): Unit = {
@@ -213,7 +231,13 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
   }
 
   def sendGuildKick(name: String): Unit = {
-    ctx.get.writeAndFlush(buildSingleStringPacket(CMSG_GUILD_REMOVE, name.toLowerCase()))
+    ctx.get.writeAndFlush(
+      buildSingleStringPacket(CMSG_GUILD_REMOVE, name.toLowerCase())
+    )
+  }
+
+  def sendResetInstances(): Unit = {
+    ctx.get.writeAndFlush(Packet(CMSG_RESET_INSTANCES))
   }
 
   protected def buildSingleStringPacket(opcode: Int, string_param: String): Packet = {
@@ -291,21 +315,22 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
 
   protected def channelParse(msg: Packet): Unit = {
     msg.id match {
-      case SMSG_AUTH_CHALLENGE => handle_SMSG_AUTH_CHALLENGE(msg)
-      case SMSG_AUTH_RESPONSE => handle_SMSG_AUTH_RESPONSE(msg)
-      case SMSG_NAME_QUERY => handle_SMSG_NAME_QUERY(msg)
-      case SMSG_CHAR_ENUM => handle_SMSG_CHAR_ENUM(msg)
-      case SMSG_LOGIN_VERIFY_WORLD => handle_SMSG_LOGIN_VERIFY_WORLD(msg)
-      case SMSG_GUILD_QUERY => handle_SMSG_GUILD_QUERY(msg)
-      case SMSG_GUILD_EVENT => handle_SMSG_GUILD_EVENT(msg)
-      case SMSG_GUILD_ROSTER => handle_SMSG_GUILD_ROSTER(msg)
-      case SMSG_MESSAGECHAT => handle_SMSG_MESSAGECHAT(msg)
-      case SMSG_CHANNEL_NOTIFY => handle_SMSG_CHANNEL_NOTIFY(msg)
-      case SMSG_NOTIFICATION => handle_SMSG_NOTIFICATION(msg)
-      case SMSG_WHO => handle_SMSG_WHO(msg)
-      case SMSG_SERVER_MESSAGE => handle_SMSG_SERVER_MESSAGE(msg)
-      case SMSG_INVALIDATE_PLAYER => handle_SMSG_INVALIDATE_PLAYER(msg)
+      case SMSG_AUTH_CHALLENGE       => handle_SMSG_AUTH_CHALLENGE(msg)
+      case SMSG_AUTH_RESPONSE        => handle_SMSG_AUTH_RESPONSE(msg)
+      case SMSG_NAME_QUERY           => handle_SMSG_NAME_QUERY(msg)
+      case SMSG_CHAR_ENUM            => handle_SMSG_CHAR_ENUM(msg)
+      case SMSG_LOGIN_VERIFY_WORLD   => handle_SMSG_LOGIN_VERIFY_WORLD(msg)
+      case SMSG_GUILD_QUERY          => handle_SMSG_GUILD_QUERY(msg)
+      case SMSG_GUILD_EVENT          => handle_SMSG_GUILD_EVENT(msg)
+      case SMSG_GUILD_ROSTER         => handle_SMSG_GUILD_ROSTER(msg)
+      case SMSG_MESSAGECHAT          => handle_SMSG_MESSAGECHAT(msg)
+      case SMSG_CHANNEL_NOTIFY       => handle_SMSG_CHANNEL_NOTIFY(msg)
+      case SMSG_NOTIFICATION         => handle_SMSG_NOTIFICATION(msg)
+      case SMSG_WHO                  => handle_SMSG_WHO(msg)
+      case SMSG_SERVER_MESSAGE       => handle_SMSG_SERVER_MESSAGE(msg)
+      case SMSG_INVALIDATE_PLAYER    => handle_SMSG_INVALIDATE_PLAYER(msg)
       case SMSG_PARTY_COMMAND_RESULT => handle_SMSG_PARTY_COMMAND_RESULT(msg)
+      case SMSG_GROUP_LIST           => handle_SMSG_GROUP_LIST(msg)
 
       case SMSG_WARDEN_DATA => handle_SMSG_WARDEN_DATA(msg)
 
@@ -423,6 +448,64 @@ class GamePacketHandler(realmId: Int, realmName: String, sessionKey: Array[Byte]
       writePlayerLogin(out)
       ctx.get.writeAndFlush(Packet(CMSG_PLAYER_LOGIN, out))
     })
+  }
+
+  def readString(buf: ByteBuf): String = {
+    val ret = ArrayBuffer.newBuilder[Byte]
+    breakable {
+      while (buf.readableBytes > 0) {
+        val value = buf.readByte
+        if (value == 0) {
+          break
+        }
+        ret += value
+      }
+    }
+
+    Source.fromBytes(ret.result.toArray, "UTF-8").mkString
+  }
+
+  protected def handle_SMSG_GROUP_LIST(msg: Packet): Unit = {
+    logger.error(s"DEBUG: ${ByteUtils.toHexString(msg.byteBuf, true, true)}")
+
+    val groupType = msg.byteBuf.readByte // 0: group, 1: raid
+    msg.byteBuf.skipBytes(1) // flags
+    val memberCount = msg.byteBuf.readIntLE()
+
+    for (i <- 1 to memberCount) {
+      val name = readString(msg.byteBuf)
+      msg.byteBuf.skipBytes(8) // guid
+      val isOnline = msg.byteBuf.readBoolean
+      msg.byteBuf.skipBytes(1) // flags
+
+      val cachedOnlineState = groupMembers.get(name)
+      if (Some(isOnline) != cachedOnlineState) {
+        cachedOnlineState match {
+          case Some(true) => {
+            groupMembers(name) = isOnline
+            sendGroupKick(name) // sendResetInstances()
+          }
+          case _  => {
+            groupMembers(name) = isOnline
+          }
+        }
+      }
+
+      logger.debug(s"Member #$i: $name - is online: $isOnline")
+    }
+
+    val leaderGUID = msg.byteBuf.readBytes(8)
+    val groupLootSetting =
+      msg.byteBuf
+        .readByte() // 0: FFA, 1: RR, 2: ML, 3: Group loot, 4: Need before greed
+    val masterLooterGUID = msg.byteBuf.readBytes(8)
+    val lootQuality = msg.byteBuf.readByte() // 2: uncommon, 3: rare, 4: epic
+    msg.byteBuf.skipBytes(1) // null-termination
+
+    logger.error(
+      s"leader GUID: ${ByteUtils.toHexString(leaderGUID)}, group loot setting: $groupLootSetting, ml guid: ${ByteUtils
+          .toHexString(masterLooterGUID)}, loot quality: $lootQuality"
+    )
   }
 
   protected def parseCharEnum(msg: Packet): Option[CharEnumMessage] = {
