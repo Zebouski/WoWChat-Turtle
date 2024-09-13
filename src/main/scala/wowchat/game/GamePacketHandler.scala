@@ -561,44 +561,44 @@ class GamePacketHandler(
   protected def handle_SMSG_GROUP_LIST(msg: Packet): Unit = {
     logger.error(s"DEBUG: ${ByteUtils.toHexString(msg.byteBuf, true, true)}")
 
-    val groupType = msg.byteBuf.readByte // 0: group, 1: raid
+    val isRaid = msg.byteBuf.readBoolean() // false: group, true: raid
+    if (!isRaid) { groupConvertToRaid(); return }
+
     msg.byteBuf.skipBytes(1) // flags
     val memberCount = msg.byteBuf.readIntLE()
 
     for (i <- 1 to memberCount) {
       val name = readString(msg.byteBuf)
       msg.byteBuf.skipBytes(8) // guid
-      val isOnline = msg.byteBuf.readBoolean
+      val isOnline = msg.byteBuf.readBoolean()
       msg.byteBuf.skipBytes(1) // flags
 
       val cachedOnlineState = groupMembers.get(name)
       if (Some(isOnline) != cachedOnlineState) {
         cachedOnlineState match {
           case Some(true) => {
+            logger.error(
+              s"Person went offline! doing the thing ($name -> $isOnline)"
+            )
             groupMembers(name) = isOnline
-            sendGroupKick(name) // sendResetInstances()
+            sendResetInstances()
+            // sendGroupKick(name)
           }
-          case _  => {
+          case _ => {
             groupMembers(name) = isOnline
           }
         }
       }
-
       logger.debug(s"Member #$i: $name - is online: $isOnline")
     }
 
-    val leaderGUID = msg.byteBuf.readBytes(8)
+    val leaderGUID = msg.byteBuf.readLongLE()
     val groupLootSetting =
       msg.byteBuf
         .readByte() // 0: FFA, 1: RR, 2: ML, 3: Group loot, 4: Need before greed
-    val masterLooterGUID = msg.byteBuf.readBytes(8)
+    val masterLooterGUID = msg.byteBuf.readLongLE()
     val lootQuality = msg.byteBuf.readByte() // 2: uncommon, 3: rare, 4: epic
     msg.byteBuf.skipBytes(1) // null-termination
-
-    logger.error(
-      s"leader GUID: ${ByteUtils.toHexString(leaderGUID)}, group loot setting: $groupLootSetting, ml guid: ${ByteUtils
-          .toHexString(masterLooterGUID)}, loot quality: $lootQuality"
-    )
   }
 
   protected def parseCharEnum(msg: Packet): Option[CharEnumMessage] = {
