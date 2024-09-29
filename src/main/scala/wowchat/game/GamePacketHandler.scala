@@ -335,6 +335,14 @@ class GamePacketHandler(
     ctx.get.writeAndFlush(Packet(CMSG_GROUP_RAID_CONVERT))
   }
 
+  def updateGroupLootMethod(mode: Int, masterGUID: Long = 0, threshold: Int = 2) = {
+    val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(16, 16)
+    byteBuf.writeIntLE(mode)
+    byteBuf.writeLongLE(masterGUID)
+    byteBuf.writeIntLE(threshold)
+    ctx.get.writeAndFlush(Packet(CMSG_LOOT_METHOD, byteBuf))
+  }
+
   def sendNameQuery(guid: Long): Unit = {
     ctx.foreach(ctx => {
       val out = PooledByteBufAllocator.DEFAULT.buffer(8, 8)
@@ -599,6 +607,13 @@ class GamePacketHandler(
     val masterLooterGUID = msg.byteBuf.readLongLE()
     val lootQuality = msg.byteBuf.readByte() // 2: uncommon, 3: rare, 4: epic
     msg.byteBuf.skipBytes(1) // null-termination
+
+    logger.error(s"DEBUG: group loot setting: ${groupLootSetting}")
+    if (groupLootSetting != 0) {
+      logger.error(s"Setting loot method")
+      updateGroupLootMethod(0)
+      return
+    }
   }
 
   protected def parseCharEnum(msg: Packet): Option[CharEnumMessage] = {
