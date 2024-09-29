@@ -608,12 +608,7 @@ class GamePacketHandler(
     val lootQuality = msg.byteBuf.readByte() // 2: uncommon, 3: rare, 4: epic
     msg.byteBuf.skipBytes(1) // null-termination
 
-    logger.error(s"DEBUG: group loot setting: ${groupLootSetting}")
-    if (groupLootSetting != 0) {
-      logger.error(s"Setting loot method")
-      updateGroupLootMethod(0)
-      return
-    }
+    if (groupLootSetting != 0) {updateGroupLootMethod(0); return}
   }
 
   protected def parseCharEnum(msg: Packet): Option[CharEnumMessage] = {
