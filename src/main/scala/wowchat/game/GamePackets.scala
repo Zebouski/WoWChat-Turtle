@@ -17,6 +17,9 @@ trait GamePackets {
   val SMSG_GUILD_QUERY = 0x55
   val CMSG_WHO = 0x62
   val SMSG_WHO = 0x63
+  val SMSG_IGNORE_LIST = 0x6B
+  val CMSG_ADD_IGNORE = 0x6C
+  val CMSG_DEL_IGNORE = 0x6D
   val CMSG_GROUP_INVITE = 0x6E
   val SMSG_GROUP_INVITE = 0x6F
   val CMSG_GROUP_KICK = 0x75
