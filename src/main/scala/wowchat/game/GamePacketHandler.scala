@@ -83,6 +83,7 @@ class GamePacketHandler(
   protected var ctx: Option[ChannelHandlerContext] = None
   protected val playerRoster = LRUMap.empty[Long, Player]
   protected val playerRosterCached = LRUMap.empty[Long, String]
+  // protected val playersIgnored = HashSet[Long]()
   protected val playersToGroupInvite: HashSet[Long] = HashSet[Long]()
   protected val groupMembers = mutable.Map.empty[String, Boolean]
   protected val guildRoster = mutable.Map.empty[Long, GuildMember]
@@ -310,6 +311,16 @@ class GamePacketHandler(
     ctx.get.writeAndFlush(
       buildSingleStringPacket(CMSG_GUILD_REMOVE, name.toLowerCase())
     )
+  }
+
+  def sendAddIgnore(name: String): Unit = {
+    ctx.get.writeAndFlush(
+      buildSingleStringPacket(CMSG_ADD_IGNORE, name.toLowerCase())
+    )
+  }
+
+  def sendDelIgnore(name: String): Unit = {
+    // TODO: ...
   }
 
   def sendResetInstances(): Unit = {

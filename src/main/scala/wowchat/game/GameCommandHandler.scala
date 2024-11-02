@@ -9,4 +9,6 @@ trait GameCommandHandler {
   def handleGmotd(): Option[String]
   def sendGuildInvite(name: String): Unit
   def sendGuildKick(name: String): Unit
+  def sendAddIgnore(name: String): Unit
+  def sendDelIgnore(name: String): Unit
 }

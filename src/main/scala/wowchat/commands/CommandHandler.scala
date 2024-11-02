@@ -92,12 +92,46 @@ object CommandHandler extends StrictLogging {
               }
             })
           })
+        case "ignore" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("ignore", () => {
+              arguments match {
+                case Some(name) => {
+                  game.sendAddIgnore(name)
+                  Some(s"'${name}' has been ignored")
+                }
+                case None => {
+                  Some("no name provided!")
+                }
+              }
+            })
+          })
+        // case "unignore" =>
+        //   Global.game.fold({
+        //     fromChannel.sendMessage(NOT_ONLINE).queue()
+        //     return true
+        //   })(game => {
+        //     protectedCommand("unignore", () => {
+        //       arguments match {
+        //         case Some(name) => {
+        //           game.sendDelIgnore(name)
+        //           Some(s"'${name}' has been unignored")
+        //         }
+        //         case None => {
+        //           Some("no name provided!")
+        //         }
+        //       }
+        //     })
+        //   })
         case "help" =>
           Global.game.fold({
             fromChannel.sendMessage(NOT_ONLINE).queue()
             return true
           })(game => {
-            Some("Supported commands: `who`, `online`, `gmotd`, `help`\nProtected commands: `ginvite <name>`, `gkick <name>`")
+            Some("Supported commands: `?who`, `?online`, `?gmotd`, `?help`\nProtected commands: `?ginvite <name>`, `?gkick <name>`, `?ignore <name>`")
           })
       }
     }.fold(throwable => {
