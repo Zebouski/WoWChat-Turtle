@@ -55,5 +55,7 @@ class RealmConnector(realmConnectionCallback: RealmConnectionCallback) extends S
         realmConnectionCallback.disconnected
       }, _ => Unit)
     }).channel)
+
+    logger.info(s"DEBUG: CONNECTED TO REALM SERVER")
   }
 }

@@ -665,7 +665,16 @@ class GamePacketHandlerMoP18414(realmId: Int, realmName: String, sessionKey: Arr
       msg.readXorByteSeq(guids(i), 6, 1, 2)
       val isOnline = (flags & 0x01) == 0x01
 
-      ByteUtils.bytesToLongLE(guids(i)) -> GuildMember(name, isOnline, charClass, level, zoneId, lastLogoff)
+      ByteUtils.bytesToLongLE(guids(i)) -> GuildMember(
+        name,
+        isOnline,
+        charClass,
+        level,
+        zoneId,
+        lastLogoff,
+        "stub",
+        "stub"
+      )
     }).toMap
 
     msg.byteBuf.skipBytes(4) // accounts number

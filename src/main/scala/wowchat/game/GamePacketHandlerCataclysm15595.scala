@@ -260,7 +260,16 @@ class GamePacketHandlerCataclysm15595(realmId: Int, realmName: String, sessionKe
       val name = msg.byteBuf.readCharSequence(nameLengths(i), Charset.forName("UTF-8")).toString
       val isOnline = (flags & 0x01) == 0x01
 
-      ByteUtils.bytesToLongLE(guids(i)) -> GuildMember(name, isOnline, charClass, level, zoneId, lastLogoff)
+      ByteUtils.bytesToLongLE(guids(i)) -> GuildMember(
+        name,
+        isOnline,
+        charClass,
+        level,
+        zoneId,
+        lastLogoff,
+        "stub",
+        "stub"
+      )
     }).toMap
 
     msg.byteBuf.skipBytes(gInfoLength)

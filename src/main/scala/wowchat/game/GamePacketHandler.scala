@@ -30,7 +30,9 @@ case class GuildMember(
     charClass: Byte,
     level: Byte,
     zoneId: Int,
-    lastLogoff: Float
+    lastLogoff: Float,
+    pNote: String,
+    oNote: String
 )
 case class ChatMessage(
     guid: Long,
@@ -200,6 +202,17 @@ class GamePacketHandler(
       .mkString(getGuildiesOnlineMessage(false), ", ", "")
   }
 
+  def buildEmptyPublicLabels: String = {
+    val characterName = Global.config.wow.character
+
+      guildRoster.valuesIterator
+        .filter(guildMember => guildMember.pNote.replaceAll(" ", "").isEmpty)
+        .toSeq
+        .sortBy(_.name)
+        .map(m => {m.name})
+        .mkString(getGuildiesWithoutPublicNoteMessage(), ", ", "")
+  }
+
   def getGuildiesOnlineMessage(isStatus: Boolean): String = {
     val size = guildRoster.count(_._2.isOnline) - 1
     val guildies = s"guildie${if (size != 1) "s" else ""}"
@@ -212,6 +225,15 @@ class GamePacketHandler(
       } else {
         s"Currently $size $guildies online:\n"
       }
+    }
+  }
+
+  def getGuildiesWithoutPublicNoteMessage(): String = {
+    val emptyLabelCount = guildRoster.count(_._2.pNote.isEmpty())
+    if (emptyLabelCount == 0) {
+      "No characters with empty public labels found"
+    } else {
+      s"Found $emptyLabelCount character(s) with empty public labels:\n"
     }
   }
 
@@ -313,10 +335,26 @@ class GamePacketHandler(
     )
   }
 
+  def sendGuildSetPublicNote(name: String, note: String): Unit = {
+    ctx.get.writeAndFlush((
+      buildMultiStringPacket(CMSG_GUILD_SET_PUBLIC_NOTE, List(name, note))
+    ))
+  }
+
+  def sendGuildSetOfficerNote(name: String, note: String): Unit = {
+    ctx.get.writeAndFlush(
+      buildMultiStringPacket(CMSG_GUILD_SET_OFFICER_NOTE, List(name, note))
+    )
+  }
+
   def sendAddIgnore(name: String): Unit = {
     ctx.get.writeAndFlush(
       buildSingleStringPacket(CMSG_ADD_IGNORE, name.toLowerCase())
     )
+  }
+
+  def characterExists(name: String): Boolean = {
+    guildRoster.values.exists(member => member.name.equalsIgnoreCase(name))
   }
 
   def sendDelIgnore(name: String): Unit = {
@@ -334,6 +372,18 @@ class GamePacketHandler(
     val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(8, 16)
     byteBuf.writeBytes(string_param.getBytes("UTF-8"))
     byteBuf.writeByte(0)
+    Packet(opcode, byteBuf)
+  }
+
+  protected def buildMultiStringPacket(
+      opcode: Int,
+      strings: List[String]
+  ): Packet = {
+    val byteBuf = PooledByteBufAllocator.DEFAULT.buffer(16)
+    strings.foreach { param =>
+      byteBuf.writeBytes(param.getBytes("UTF-8"))
+      byteBuf.writeByte(0)
+    }
     Packet(opcode, byteBuf)
   }
 
@@ -369,6 +419,29 @@ class GamePacketHandler(
       None
     } else {
       Some(buildGuildiesOnline)
+    }
+  }
+
+  override def handleEmptyPublicLabels(): Option[String] = {
+    Some(buildEmptyPublicLabels)
+  }
+
+  override def handleGetPublicLabel(name: String): Option[String] = {
+    guildRoster.values.find(member => member.name.equalsIgnoreCase(name)) match {
+      case Some(member) => {
+        Some(member.pNote)
+      }
+      case None => Some("No member found")
+    }
+  }
+
+  override def handleRemovePublicLabel(name: String): Option[String] = {
+    guildRoster.values.find(member => member.name.equalsIgnoreCase(name)) match {
+      case Some(member) => {
+        sendGuildSetPublicNote(name, " ")
+        Some(s"Removed public note for '${name}'")
+      }
+      case None => Some(s"Character not found: '${name}'")
     }
   }
 
@@ -824,8 +897,10 @@ class GamePacketHandler(
         } else {
           0
         }
-        msg.skipString
-        msg.skipString
+        // msg.skipString
+        val pNote = msg.readString.trim
+        // msg.skipString
+        val oNote = msg.readString.trim
 
         guid -> GuildMember(
           name,
@@ -833,7 +908,9 @@ class GamePacketHandler(
           charClass,
           level,
           zoneId,
-          lastLogoff
+          lastLogoff,
+          pNote,
+          oNote
         )
       })
       .toMap
@@ -925,17 +1002,17 @@ class GamePacketHandler(
       .readCharSequence(txtLen - 1, Charset.forName("UTF-8"))
       .toString
 
-    // invite feature:
-    if (
-      tp == ChatEvents.CHAT_MSG_WHISPER && (txt.toLowerCase.contains(
-        "camp"
-      ) || txt.toLowerCase().contains("invite"))
-    ) {
+    if (handleInvites(tp, txt)) {
       playersToGroupInvite += guid
       logger.debug(s"PLAYER INVITATION: added $guid to the queue")
     }
 
     Some(ChatMessage(guid, tp, txt, channelName))
+  }
+
+  private def handleInvites(tp: Byte, msg: String): Boolean = {
+    val words = List("camp", "inv", "join")
+    tp == ChatEvents.CHAT_MSG_WHISPER && words.exists(word => msg.toLowerCase.contains(word.toLowerCase))
   }
 
   private def handle_SMSG_CHANNEL_NOTIFY(msg: Packet): Unit = {

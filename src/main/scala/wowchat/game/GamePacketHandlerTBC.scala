@@ -152,7 +152,16 @@ class GamePacketHandlerTBC(realmId: Int, realmName: String, sessionKey: Array[By
       msg.skipString
       msg.skipString
 
-      guid -> GuildMember(name, isOnline, charClass, level, zoneId, lastLogoff)
+      guid -> GuildMember(
+        name,
+        isOnline,
+        charClass,
+        level,
+        zoneId,
+        lastLogoff,
+        "stub",
+        "stub"
+      )
     }).toMap
   }
 

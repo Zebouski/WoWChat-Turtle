@@ -24,7 +24,12 @@ case class Packet(
       }
     }
 
-    Source.fromBytes(ret.result.toArray, "UTF-8").mkString
+    // Check if the ArrayBuffer is empty, indicating only termination byte was present
+    if (ret.result.length == 0) {
+      ""
+    } else {
+      Source.fromBytes(ret.result.toArray, "UTF-8").mkString
+    }
   }
 
   def skipString: Packet = {

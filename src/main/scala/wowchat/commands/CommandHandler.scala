@@ -31,6 +31,7 @@ object CommandHandler extends StrictLogging {
     val splt = message.substring(trigger.length).split(" ")
     val possibleCommand = splt(0).toLowerCase
     val arguments = if (splt.length > 1 && splt(1).length <= 16) Some(splt(1)) else None
+    val arguments_param = message.substring(trigger.length).split(" ", 3).drop(1)
 
     def protectedCommand(commandName: String, callback: () => Option[String]): Option[String] = {
       if (Global.config.discord.protectedGuildCommandChannels.contains(fromChannel.getId())) {
@@ -68,6 +69,76 @@ object CommandHandler extends StrictLogging {
                 case Some(name) => {
                   game.sendGuildInvite(name.toLowerCase)
                   Some(s"Invited '${name}' to the guild")
+                }
+                case None => {
+                  Some("no name provided!")
+                }
+              }
+            })
+          })
+        case "update_label" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })({game =>
+            protectedCommand("update_label", () => {
+              var err_text = "Expected format: \"?update_label name some text...\""
+              arguments_param match {
+                case Array(name, text) =>
+                  val strippedText = text.trim
+                  if (strippedText.nonEmpty) {
+                    if (game.characterExists(name)) {
+                      game.sendGuildSetPublicNote(name.toLowerCase, strippedText)
+                      Some(s"Updated public note for '${name}': '${strippedText}'")
+                    } else {
+                      Some(s"Character not found: ${name}")
+                    }
+                  } else {
+                    Some(err_text)
+                  }
+                case Array(name) => Some(err_text)
+                case _ => Some(err_text)
+              }
+            })
+        })
+        case "show_empty_labels" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("show_empty_labels", () => {
+              val emptyLables = game.handleEmptyPublicLabels()
+              emptyLables
+            })
+          })
+        case "show_label" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("show_label", () => {
+              var err_text = "Expected format: \"?show_label name\""
+              arguments match {
+                case Some(name) => {
+                  val label = game.handleGetPublicLabel(name).getOrElse("")
+                  Some(s"${name}'s public label: '${label}'")
+                }
+                case None => {
+                  Some("no name provided!")
+                }
+              }
+            })
+          })
+        case "remove_label" =>
+          Global.game.fold({
+            fromChannel.sendMessage(NOT_ONLINE).queue()
+            return true
+          })(game => {
+            protectedCommand("remove_label", () => {
+              var err_text = "Expected format: \"?remove_label name\""
+              arguments match {
+                case Some(name) => {
+                  game.handleRemovePublicLabel(name)
                 }
                 case None => {
                   Some("no name provided!")
@@ -131,7 +202,7 @@ object CommandHandler extends StrictLogging {
             fromChannel.sendMessage(NOT_ONLINE).queue()
             return true
           })(game => {
-            Some("Supported commands: `?who`, `?online`, `?gmotd`, `?help`\nProtected commands: `?ginvite <name>`, `?gkick <name>`, `?ignore <name>`")
+            Some("Supported commands: `?who`, `?online`, `?gmotd`, `?help`\nProtected commands: `?ginvite <name>`, `?gkick <name>`, `?ignore <name>`, `?show_label <name>`, `?show_empty_labels`, `?update_label <name> <some text...>`, `?remove_label <name>`")
           })
       }
     }.fold(throwable => {
