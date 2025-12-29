@@ -29,7 +29,7 @@ class MessageResolver(jda: JDA) {
     "quest" -> "\\|.+?\\|Hquest:(\\d+):.+?\\|h\\[(.+?)]\\|h\\|r".r
   )
 
-  protected val linkSite = "http://database.turtle-wow.org"
+  protected val linkSite = "http://database.turtlecraft.gg"
 
   def resolveLinks(message: String): String = {
     linkRegexes.foldLeft(message) {
